@@ -12,6 +12,11 @@ from sentence_transformers import SentenceTransformer
 import logging
 import argparse
 
+# Add parent directory to path to import app modules if running standalone
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -19,9 +24,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add parent directory to PYTHONPATH to import app modules
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, parent_dir)
+# Import config to use the same paths
+try:
+    from app.core.config import Config, PROJECT_ROOT
+    logger.info("Using app config for paths")
+except ImportError:
+    # If we can't import the config, define PROJECT_ROOT manually
+    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    logger.info(f"App config not available, using manual PROJECT_ROOT: {PROJECT_ROOT}")
 
 def load_mountains_data(csv_path):
     """
@@ -113,18 +123,35 @@ def create_vector_store(texts, metadata, collection_name="mountains_data", persi
     logger.info(f"Successfully stored {len(texts)} mountains in ChromaDB")
     return collection
 
-def main():
-    # Get the directory of this script and the project root
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.abspath(os.path.join(script_dir, '..'))
-
+def main(args=None):
     parser = argparse.ArgumentParser(description='Prepare mountain data and load into ChromaDB')
-    parser.add_argument('--csv_path', default=os.path.join(project_root, 'data', 'mountain.csv'), help='Path to mountains CSV file')
-    parser.add_argument('--collection', default='mountains_data', help='Name for ChromaDB collection')
-    parser.add_argument('--persist_dir', default=os.path.join(project_root, 'data', 'chroma_db'), help='Directory for ChromaDB persistence')
-    args = parser.parse_args()
+
+    # Use Config for default paths if available
+    try:
+        default_csv_path = Config.get("MOUNTAIN_CSV_PATH")
+        default_db_path = Config.get("VECTOR_DB_PATH")
+        default_collection = Config.get("VECTOR_COLLECTION")
+    except (NameError, AttributeError):
+        # Fallback to hardcoded defaults
+        default_csv_path = os.path.join(PROJECT_ROOT, 'data', 'mountain.csv')
+        default_db_path = os.path.join(PROJECT_ROOT, 'data', 'chroma_db')
+        default_collection = 'mountains_data'
+
+    parser.add_argument('--csv_path', default=default_csv_path, help='Path to mountains CSV file')
+    parser.add_argument('--collection', default=default_collection, help='Name for ChromaDB collection')
+    parser.add_argument('--persist_dir', default=default_db_path, help='Directory for ChromaDB persistence')
+
+    # Parse args from command line or from function parameter
+    if args is None:
+        args = parser.parse_args()
+    else:
+        args = parser.parse_args(args)
+
+    # Make sure the persist directory exists
+    os.makedirs(args.persist_dir, exist_ok=True)
 
     # Load the mountains data
+    logger.info(f"Loading data from: {args.csv_path}")
     df = load_mountains_data(args.csv_path)
 
     # Prepare data for embeddings

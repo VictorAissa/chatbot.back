@@ -70,6 +70,7 @@ opentelemetry-util-http==0.52b0
 orjson==3.10.15
 overrides==7.7.0
 packaging==24.2
+pandas==2.2.3
 pillow==11.1.0
 posthog==3.20.0
 protobuf==5.29.3
@@ -83,6 +84,7 @@ pyproject_hooks==1.2.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-multipart==0.0.20
+pytz==2025.1
 PyYAML==6.0.2
 regex==2024.11.6
 requests==2.32.3
@@ -108,6 +110,7 @@ transformers==4.49.0
 triton==3.2.0
 typer==0.15.2
 typing_extensions==4.12.2
+tzdata==2025.1
 urllib3==2.3.0
 uvicorn==0.34.0
 uvloop==0.21.0

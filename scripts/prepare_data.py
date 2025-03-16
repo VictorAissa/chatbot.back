@@ -96,20 +96,36 @@ def create_vector_store(texts, metadata, collection_name="mountains_data", persi
     logger.info(f"Initializing ChromaDB with persistence at: {persist_directory}")
     chroma_client = chromadb.PersistentClient(path=persist_directory)
 
-    # Check if collection exists and delete if requested
+    # Check if collection exists and delete if necessary - compatible with ChromaDB v0.6.0+
     try:
-        existing_collections = chroma_client.list_collections()
-        if any(c.name == collection_name for c in existing_collections):
+        collection_names = chroma_client.list_collections()
+        if collection_name in [coll for coll in collection_names]:
             logger.info(f"Collection {collection_name} already exists, recreating it")
             chroma_client.delete_collection(name=collection_name)
     except Exception as e:
         logger.error(f"Error checking existing collections: {str(e)}")
+        # Attempt to continue by assuming we need to recreate the collection
+        try:
+            chroma_client.delete_collection(name=collection_name)
+            logger.info(f"Attempted to delete existing collection: {collection_name}")
+        except Exception:
+            # Ignore if the collection doesn't exist
+            pass
 
     # Create collection
-    collection = chroma_client.create_collection(
-        name=collection_name,
-        metadata={"hnsw:space": "cosine"}
-    )
+    try:
+        collection = chroma_client.create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"}
+        )
+    except Exception as e:
+        logger.error(f"Failed to create collection, trying again: {str(e)}")
+        # Last attempt: Force recreate collection
+        chroma_client.delete_collection(name=collection_name)
+        collection = chroma_client.create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"}
+        )
 
     # Add data to ChromaDB
     logger.info(f"Adding {len(texts)} mountains to ChromaDB")
@@ -128,12 +144,12 @@ def main(args=None):
 
     # Use Config for default paths if available
     try:
-        default_csv_path = Config.get("MOUNTAIN_CSV_PATH")
-        default_db_path = Config.get("VECTOR_DB_PATH")
-        default_collection = Config.get("VECTOR_COLLECTION")
+        default_csv_path = Config.get("MOUNTAIN_CSV_PATH", os.path.join(PROJECT_ROOT, 'scripts', 'mountain.csv'))
+        default_db_path = Config.get("VECTOR_DB_PATH", os.path.join(PROJECT_ROOT, 'data', 'chroma_db'))
+        default_collection = Config.get("VECTOR_COLLECTION", 'mountains_data')
     except (NameError, AttributeError):
         # Fallback to hardcoded defaults
-        default_csv_path = os.path.join(PROJECT_ROOT, 'data', 'mountain.csv')
+        default_csv_path = os.path.join(PROJECT_ROOT, 'scripts', 'mountain.csv')
         default_db_path = os.path.join(PROJECT_ROOT, 'data', 'chroma_db')
         default_collection = 'mountains_data'
 

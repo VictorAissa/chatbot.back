@@ -82,7 +82,6 @@ from app.services.vector_store import vector_store as vector_store_instance
 # Function to check DB state
 def check_db():
     """Check the database state before starting the API"""
-    # Utilisation explicite de l'import
     global vector_store_instance
     stats = vector_store_instance.get_collection_stats()
     doc_count = stats.get("document_count", 0)

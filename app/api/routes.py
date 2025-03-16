@@ -97,20 +97,6 @@ async def chat_endpoint(request: ChatRequest):
         logger.error(f"Error processing chat request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/health", response_model=HealthResponse)
-def health_check():
-    """Health check endpoint"""
-    try:
-        stats = vector_store.get_collection_stats()
-        return HealthResponse(
-            status="healthy",
-            version="0.1.0",
-            collection_stats=stats
-        )
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/prepare-data")
 async def prepare_data(background_tasks: BackgroundTasks):
     """

@@ -1,5 +1,5 @@
 """
-Main FastAPI application for the Mountains RAG Chatbot.
+Main FastAPI application.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -19,14 +19,19 @@ logger = logging.getLogger(__name__)
 
 # Import configuration
 from app.core.config import Config, PROJECT_ROOT
-from app.services.vector_store import vector_store
+
+cors_origins_str = Config.get("CORS_ORIGINS", "*")
+if cors_origins_str == "*":
+    origins = ["*"]
+else:
+    origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
 
 
-# Ensure data directories exist with proper structure
 def ensure_data_structure():
     """Ensure the data directory structure is properly set up"""
     # Ensure main data directory exists
     data_dir = os.path.join(PROJECT_ROOT, "data")
+    scripts_dir = os.path.join(PROJECT_ROOT, "scripts")
     os.makedirs(data_dir, exist_ok=True)
     logger.info(f"Ensuring data directory exists: {data_dir}")
 
@@ -39,7 +44,7 @@ def ensure_data_structure():
     app_data_dir = os.path.join(PROJECT_ROOT, "app", "data")
 
     # Check for mountain.csv
-    mountain_csv = os.path.join(data_dir, "mountain.csv")
+    mountain_csv = os.path.join(scripts_dir, "mountain.csv")
     if not os.path.exists(mountain_csv):
         logger.warning(f"mountain.csv not found in main data directory: {mountain_csv}")
 
@@ -142,13 +147,13 @@ app = FastAPI(
 )
 
 # Configure CORS
-origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Type", "Content-Length"]
 )
 
 # Import and include our router

@@ -1,11 +1,11 @@
 """
-Configuration module for the RAG application.
+Configuration module.
 Loads settings from environment variables or a .env file.
 """
 
 import os
 import logging
-from typing import Dict, Any
+from typing import Any
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)

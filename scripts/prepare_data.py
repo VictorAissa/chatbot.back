@@ -7,7 +7,6 @@ import os
 import sys
 import pandas as pd
 import chromadb
-from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 import logging
 import argparse

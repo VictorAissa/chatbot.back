@@ -5,9 +5,9 @@ Vector store module for interacting with ChromaDB.
 import chromadb
 import os
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
-# Import our embedding service and configuration
+# Import embedding service and configuration
 from app.services.embedding import embedding_service
 from app.core.config import Config
 

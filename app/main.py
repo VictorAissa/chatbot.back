@@ -2,7 +2,7 @@
 Main FastAPI application.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
@@ -10,14 +10,12 @@ import sys
 import importlib.util
 import shutil
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# Import configuration
 from app.core.config import Config, PROJECT_ROOT
 
 cors_origins_str = Config.get("CORS_ORIGINS", "*")
@@ -78,13 +76,10 @@ def ensure_data_structure():
             shutil.rmtree(chroma_dir)  # Remove empty directory
             shutil.copytree(app_chroma, chroma_dir)
 
-# Ensure proper data structure before anything else
 ensure_data_structure()
 
-# Now import vector_store after data structure is set up
 from app.services.vector_store import vector_store as vector_store_instance
 
-# Function to check DB state
 def check_db():
     """Check the database state before starting the API"""
     global vector_store_instance
@@ -101,16 +96,13 @@ def check_db():
         if os.environ.get("AUTO_PREPARE_DATA", "").lower() in ("true", "1", "yes"):
             try:
                 logger.info("Attempting to automatically prepare data...")
-                # If we have a CSV file but no database, prepare the data
                 csv_path = Config.get("MOUNTAIN_CSV_PATH")
 
                 if os.path.exists(csv_path):
                     logger.info(f"Found mountain data CSV at: {csv_path}")
 
-                    # Get the path to the prepare_data.py script
                     script_path = os.path.join(PROJECT_ROOT, "scripts", "prepare_data.py")
 
-                    # Import and run the prepare_data module
                     if os.path.exists(script_path):
                         spec = importlib.util.spec_from_file_location("prepare_data", script_path)
                         prepare_data = importlib.util.module_from_spec(spec)
@@ -134,7 +126,6 @@ def check_db():
 
     return doc_count > 0
 
-# Check DB state
 db_has_documents = check_db()
 
 # Create FastAPI app
@@ -170,7 +161,6 @@ async def startup_event():
     else:
         logger.info("Vector database is populated and ready")
 
-# Add a root endpoint that redirects to docs
 @app.get("/")
 async def root_redirect():
     """Redirect root to API endpoint"""
@@ -181,7 +171,6 @@ async def root_redirect():
     }
 
 if __name__ == "__main__":
-    # Start the server if run directly
     import uvicorn
     host = Config.get("API_HOST")
     port = int(Config.get("API_PORT"))

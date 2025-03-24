@@ -112,6 +112,7 @@ class VectorStore:
             Dict: Collection statistics
         """
         try:
+            self.collection = self.client.get_collection(name=self.collection_name)
             # Get all IDs to count the number of documents
             all_ids = self.collection.get()['ids']
             count = len(all_ids)

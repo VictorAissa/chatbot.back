@@ -55,7 +55,14 @@ def prepare_mountains_for_embeddings(df):
     texts = []
     for _, row in df.iterrows():
         text = f"{row['Mountain']} is a mountain with a height of {row['Metres']} meters ({row['Feet']} feet). "
-        text += f"It is part of the {row['Range']} range and is located in {row['Location']}."
+        if pd.notna(row['Range']) and row['Range'] != 'nan' and row['Range'].strip() != "":
+            text += f"It is part of the {row['Range']} range and "
+        else:
+            text += "Its range is unknown and "
+        if pd.notna(row['Location']) and row['Location'] != 'nan' and row['Location'].strip() != "":
+            text += f"is located in {row['Location']}."
+        else:
+            text += "its location is unknown."
         texts.append(text)
 
     # Use mountain names as titles

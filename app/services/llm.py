@@ -7,11 +7,12 @@ import time
 import logging
 import json
 import httpx
-from typing import Tuple, Optional, AsyncGenerator, List, Dict, Any
+from typing import Tuple, Optional, AsyncGenerator, Dict, Any
 
 from app.core.config import Config
 
 logger = logging.getLogger(__name__)
+ollama_api_base = Config.get("OLLAMA_API_BASE", "http://localhost:11434/api")
 
 def _get_llm_params(
         model_name: str = None,
@@ -26,7 +27,7 @@ def _get_llm_params(
         "top_p": top_p if top_p is not None else float(Config.get("LLM_TOP_P"))
     }
 
-def query_llm_with_ollama(
+def query_llm_with_ollama_api(
     prompt: str,
     model_name: str = None,
     temperature: float = None,
@@ -50,10 +51,49 @@ def query_llm_with_ollama(
     """
     params = _get_llm_params(model_name, temperature, top_k, top_p)
     model_name = params["model_name"]
+    temperature = params["temperature"]
+    top_k = params["top_k"]
+    top_p = params["top_p"]
 
-    logger.info(f"Using LLM model: {model_name}")
+    request_data = {
+        "model": model_name,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": temperature,
+            "top_k": top_k,
+            "top_p": top_p
+        }
+    }
 
-    # Build the basic command for Ollama (without extra parameters for now)
+    if max_tokens is not None:
+        request_data["options"]["num_predict"] = max_tokens
+
+    try:
+        response = httpx.post(f"{ollama_api_base}/generate", json=request_data, timeout=120.0)
+
+        response.raise_for_status()
+        result = response.json()
+        return result.get("response", "")
+    except Exception as e:
+        logger.error(f"Error querying Ollama API: {str(e)}")
+        return f"Error: {str(e)}"
+
+
+def qquery_llm_with_ollama_subprocess(
+        prompt: str,
+        model_name: str = None,
+        max_tokens: Optional[int] = None
+) -> str:
+    """
+    Query an LLM model via Ollama using subprocess (fast but no temperature control)
+    """
+    params = _get_llm_params(model_name, None, None, None)
+    model_name = params["model_name"]
+
+    logger.info(f"Using LLM model via subprocess: {model_name}")
+
+    # Basic command for Ollama without temperature parameters
     command = ["ollama", "run", model_name]
 
     try:
@@ -63,52 +103,54 @@ def query_llm_with_ollama(
             input=prompt.encode('utf-8'),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            check=True
+            check=True,
+            timeout=120
         )
 
         response = result.stdout.decode('utf-8').strip()
-        logger.info(f"Successfully received response from Ollama")
+        logger.info(f"Successfully received response from Ollama (direct method)")
         return response
 
+    except subprocess.TimeoutExpired:
+        logger.error("Subprocess timed out after 60 seconds")
+        return "Error: Subprocess timed out. The model is taking too long to respond."
     except subprocess.CalledProcessError as e:
         error_message = e.stderr.decode('utf-8')
         logger.error(f"Error querying Ollama: {error_message}")
-        # Return a formatted error message
         return f"Error: Unable to generate response. {error_message}"
-
     except Exception as e:
         logger.error(f"Unexpected error when querying Ollama: {str(e)}")
         return f"Error: An unexpected error occurred: {str(e)}"
 
-def query_llm_directly(
-    query: str,
-    temperature: float = 0.7,
-    max_tokens: Optional[int] = None
-) -> Tuple[str, float]:
+def query_llm_with_fallback(
+        prompt: str,
+        model_name: str = None,
+        temperature: float = None,
+        top_k: int = None,
+        top_p: float = None,
+        max_tokens: Optional[int] = None
+) -> str:
     """
-    Query the LLM directly without additional context
-
-    Args:
-        query: The user query
-        temperature: Model temperature control
-        max_tokens: Maximum number of tokens to generate
-
-    Returns:
-        Tuple[str, float]: The response and processing time
+    Query LLM with temperature control if possible, falling back to direct method if timeout occurs
     """
-    start_time = time.time()
+    # If no temperature is specified, use the direct method immediately
+    if temperature is None :
+        logger.info("No specific temperature requested, using direct method")
+        return qquery_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
 
-    prompt = f"Question: {query}\nAnswer:"
-    response = query_llm_with_ollama(
-        prompt=prompt,
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
+    # Try with API first to get temperature control
+    try:
+        logger.info(f"Attempting API request with temperature={temperature}")
 
-    time_taken = time.time() - start_time
-    logger.info(f"LLM direct query completed in {time_taken:.2f} seconds")
+        result = query_llm_with_ollama_api(prompt, model_name, temperature, top_k, top_p, max_tokens)
+        return result
 
-    return response, time_taken
+    except (httpx.TimeoutException, httpx.ReadTimeout):
+        logger.warning("API request timed out, falling back to subprocess method")
+        return qquery_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
+    except Exception as e:
+        logger.error(f"API request failed: {str(e)}, falling back to subprocess method")
+        return qquery_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
 
 
 async def query_llm_with_ollama_stream(
@@ -141,8 +183,6 @@ async def query_llm_with_ollama_stream(
     top_p = params["top_p"]
 
     logger.info(f"Streaming from LLM model: {model_name}")
-
-    ollama_api_base = Config.get("OLLAMA_API_BASE", "http://localhost:11434/api")
 
     request_data = {
         "model": model_name,
@@ -203,36 +243,6 @@ async def query_llm_stream(
         Tokens as they are generated
     """
     prompt = f"Question: {query}\nAnswer:"
-
-    async for token in query_llm_with_ollama_stream(
-            prompt=prompt,
-            temperature=temperature,
-            max_tokens=max_tokens
-    ):
-        yield token
-
-
-async def rag_pipeline_stream(
-        query: str,
-        docs: List[Dict[str, Any]],
-        temperature: float = 0.7,
-        max_tokens: Optional[int] = None
-) -> AsyncGenerator[str, None]:
-    """
-    Stream response from the RAG pipeline
-
-    Args:
-        query: The user query
-        docs: Retrieved documents for context
-        temperature: Model temperature control
-        max_tokens: Maximum number of tokens to generate
-
-    Yields:
-        Tokens as they are generated
-    """
-    context = "\n\n".join([doc["text"] for doc in docs])
-
-    prompt = f"Context:\n{context}\n\nQuestion: {query}\n\nAnswer:"
 
     async for token in query_llm_with_ollama_stream(
             prompt=prompt,

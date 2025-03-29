@@ -7,54 +7,10 @@ import time
 import logging
 from typing import Tuple, List, Dict, Any, AsyncGenerator
 
-# Import services
 from app.services.vector_store import vector_store
 from app.services.llm import query_llm_with_fallback, query_llm_with_ollama_stream
 
 logger = logging.getLogger(__name__)
-
-
-def generate_prompt_from_context(query: str, contexts: List[Dict[str, Any]]) -> str:
-    """
-    Generate a prompt for the LLM based on the retrieved context documents
-
-    Args:
-        query: The user query
-        contexts: List of context documents with their metadata
-
-    Returns:
-        str: The formatted prompt
-    """
-    # Build context string from the documents
-    context_parts = []
-    for doc in contexts:
-        # Extract mountain metadata if available
-        metadata = doc.get('metadata', {})
-        if metadata:
-            mountain_name = metadata.get('mountain', 'Unknown Mountain')
-            context_parts.append(f"Mountain: {mountain_name}\n{doc['text']}")
-        else:
-            context_parts.append(doc['text'])
-
-    context_text = "\n\n".join(context_parts)
-
-    # Construct the prompt
-    prompt = f"""Context:
-{context_text}
-
-Question: {query}
-
-Instructions:
-- Answer the question based on the provided context about mountains
-- Be concise and accurate with mountain heights, locations, and other facts
-- If the context doesn't contain enough information to answer the question, say so
-- If the question asks for a comparison between mountains, use the exact figures from the context
-- Format your answer in a clear, readable way
-
-Answer:"""
-
-    return prompt
-
 
 def rag_pipeline(
         query: str,
@@ -78,19 +34,18 @@ def rag_pipeline(
     logger.info(f"Starting RAG pipeline for query: {query}")
 
     try:
-        # Step 1: Retrieve relevant documents
+        # Retrieve relevant documents
         docs = vector_store.search(query, top_k=top_k)
         logger.info(f"Retrieved {len(docs)} documents for context")
 
-        # Log the document scores for analysis
         for i, doc in enumerate(docs):
             logger.debug(f"Document {i + 1}: score={doc.get('score', 'N/A')}")
 
-        # Step 2: Create prompt with context
+        # Create prompt with context
         context = "\n\n".join([doc["text"] for doc in docs])
         prompt = f"Context:\n{context}\n\nQuestion: {query}\n\nAnswer:"
 
-        # Step 3: Generate response with LLM
+        # Generate response with LLM
         response = query_llm_with_fallback(
             prompt=prompt,
             temperature=temperature,

@@ -9,6 +9,7 @@ import sys
 import logging
 import time
 import argparse
+import asyncio
 from pprint import pprint
 
 # Add parent directory to Python path
@@ -46,20 +47,25 @@ def check_db():
 
 
 # Test a query with the full RAG pipeline
-def test_query(query, use_rag=True):
+def test_query(query, use_rag=True, temperature=0.7, top_k=3):
     """Test the complete RAG pipeline with a query"""
     if use_rag:
         from app.services.rag import rag_pipeline
 
         logger.info("=" * 50)
         logger.info(f"TESTING RAG PIPELINE with query: '{query}'")
+        logger.info(f"Parameters: top_k={top_k}, temperature={temperature}")
         logger.info("=" * 50)
 
         # Start timer
         start_time = time.time()
 
         # Execute the RAG pipeline
-        response, sources, processing_time = rag_pipeline(query, top_k=3)
+        response, sources, processing_time = rag_pipeline(
+            query=query,
+            top_k=top_k,
+            temperature=temperature
+        )
 
         # Log results
         logger.info(f"Pipeline completed in {processing_time:.2f} seconds")
@@ -69,8 +75,10 @@ def test_query(query, use_rag=True):
         for i, source in enumerate(sources):
             logger.info(f"SOURCE {i + 1}:")
             logger.info(f"  Text: {source['text'][:100]}...")
-            if 'metadata' in source:
-                logger.info(f"  Metadata: {source['metadata']}")
+            if 'metadata' in source and source['metadata']:
+                logger.info(f"  Mountain: {source['metadata'].get('mountain', 'Unknown')}")
+                logger.info(f"  Height: {source['metadata'].get('height_m', 'Unknown')} m / {source['metadata'].get('height_ft', 'Unknown')} ft")
+                logger.info(f"  Location: {source['metadata'].get('location', 'Unknown')}")
             logger.info(f"  Relevance score: {source.get('score', 'N/A')}")
             logger.info("-" * 30)
 
@@ -80,14 +88,25 @@ def test_query(query, use_rag=True):
 
         return response, sources
     else:
-        from app.services.llm import query_llm_directly
+        from app.services.llm import query_llm_with_fallback
 
         logger.info("=" * 50)
         logger.info(f"TESTING DIRECT LLM QUERY with query: '{query}'")
+        logger.info(f"Parameters: temperature={temperature}")
         logger.info("=" * 50)
 
+        prompt = f"Question: {query}\nAnswer:"
+
+        # Start timer
+        start_time = time.time()
+
         # Execute direct LLM query
-        response, processing_time = query_llm_directly(query)
+        response = query_llm_with_fallback(
+            prompt=prompt,
+            temperature=temperature
+        )
+
+        processing_time = time.time() - start_time
 
         # Log results
         logger.info(f"Query completed in {processing_time:.2f} seconds")
@@ -97,6 +116,79 @@ def test_query(query, use_rag=True):
         return response, None
 
 
+async def test_query_stream(query, use_rag=True, temperature=0.7, top_k=3):
+    """Test streaming query with the RAG pipeline"""
+    if use_rag:
+        from app.services.rag import rag_pipeline_stream
+
+        logger.info("=" * 50)
+        logger.info(f"TESTING RAG PIPELINE STREAM with query: '{query}'")
+        logger.info(f"Parameters: top_k={top_k}, temperature={temperature}")
+        logger.info("=" * 50)
+
+        # Start timer
+        start_time = time.time()
+
+        # Initialize stream
+        token_generator = await rag_pipeline_stream(
+            query=query,
+            top_k=top_k,
+            temperature=temperature
+        )
+
+        # Collect tokens
+        tokens = []
+        print("Streaming response: ", end="", flush=True)
+
+        async for token in token_generator:
+            tokens.append(token)
+            print(token, end="", flush=True)
+
+        print("\n")  # Add newline after tokens
+
+        full_response = "".join(tokens)
+        processing_time = time.time() - start_time
+
+        # Log results
+        logger.info(f"Streaming completed in {processing_time:.2f} seconds")
+        logger.info(f"Total tokens received: {len(tokens)}")
+
+        return full_response
+
+    else:
+        from app.services.llm import query_llm_stream
+
+        logger.info("=" * 50)
+        logger.info(f"TESTING DIRECT LLM STREAM with query: '{query}'")
+        logger.info(f"Parameters: temperature={temperature}")
+        logger.info("=" * 50)
+
+        # Start timer
+        start_time = time.time()
+
+        # Collect tokens
+        tokens = []
+        print("Streaming response: ", end="", flush=True)
+
+        async for token in query_llm_stream(
+            query=query,
+            temperature=temperature
+        ):
+            tokens.append(token)
+            print(token, end="", flush=True)
+
+        print("\n")  # Add newline after tokens
+
+        full_response = "".join(tokens)
+        processing_time = time.time() - start_time
+
+        # Log results
+        logger.info(f"Streaming completed in {processing_time:.2f} seconds")
+        logger.info(f"Total tokens received: {len(tokens)}")
+
+        return full_response
+
+
 # Main function to run the test
 def main():
     parser = argparse.ArgumentParser(description='Test the complete RAG system')
@@ -104,32 +196,42 @@ def main():
                         help='Query to test')
     parser.add_argument('--no-rag', action='store_true',
                         help='Use direct LLM query without RAG')
+    parser.add_argument('--stream', action='store_true',
+                        help='Use streaming response')
     parser.add_argument('--check-only', action='store_true',
                         help='Only check the database without querying')
     parser.add_argument('--prepare-data', action='store_true',
                         help='Run data preparation script if database is empty')
+    parser.add_argument('--temperature', type=float, default=0.7,
+                        help='Temperature for LLM generation (0.1-2.0)')
+    parser.add_argument('--top-k', type=int, default=3,
+                        help='Number of documents to retrieve')
     args = parser.parse_args()
 
     # Check the database
     db_ok = check_db()
 
-    if not db_ok and args.prepare_data:
-        logger.info("Automatically running data preparation script...")
-        try:
-            import scripts.prepare_data
-            scripts.prepare_data.main()
-            db_ok = check_db()  # Check again after preparation
-        except Exception as e:
-            logger.error(f"Failed to prepare data: {str(e)}")
-
     if args.check_only:
         return
 
-    if not db_ok:
-        logger.warning("Proceeding with query even though database may be empty...")
+    if not db_ok and args.stream and not args.no_rag:
+        logger.warning("Database appears to be empty. RAG may not work correctly.")
 
     # Test the query
-    test_query(args.query, not args.no_rag)
+    if args.stream:
+        asyncio.run(test_query_stream(
+            query=args.query,
+            use_rag=not args.no_rag,
+            temperature=args.temperature,
+            top_k=args.top_k
+        ))
+    else:
+        test_query(
+            query=args.query,
+            use_rag=not args.no_rag,
+            temperature=args.temperature,
+            top_k=args.top_k
+        )
 
 
 if __name__ == "__main__":

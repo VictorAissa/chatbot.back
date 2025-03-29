@@ -16,19 +16,16 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# Import config to use the same paths
 try:
     from app.core.config import Config, PROJECT_ROOT
     logger.info("Using app config for paths")
 except ImportError:
-    # If we can't import the config, define PROJECT_ROOT manually
     PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     logger.info(f"App config not available, using manual PROJECT_ROOT: {PROJECT_ROOT}")
 
@@ -88,17 +85,12 @@ def create_vector_store(texts, metadata, collection_name="mountains_data", persi
     """
     logger.info("Creating embeddings and storing in ChromaDB")
 
-    # Create persistence directory if it doesn't exist
     os.makedirs(persist_directory, exist_ok=True)
-
-    # Load embedding model
     model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
-    # Generate embeddings
     logger.info(f"Generating embeddings for {len(texts)} mountains")
     embeddings = model.encode(texts, show_progress_bar=True)
 
-    # Initialize ChromaDB client with persistence
     logger.info(f"Initializing ChromaDB with persistence at: {persist_directory}")
     chroma_client = chromadb.PersistentClient(path=persist_directory)
 
@@ -163,23 +155,18 @@ def main(args=None):
     parser.add_argument('--collection', default=default_collection, help='Name for ChromaDB collection')
     parser.add_argument('--persist_dir', default=default_db_path, help='Directory for ChromaDB persistence')
 
-    # Parse args from command line or from function parameter
     if args is None:
         args = parser.parse_args()
     else:
         args = parser.parse_args(args)
 
-    # Make sure the persist directory exists
     os.makedirs(args.persist_dir, exist_ok=True)
 
-    # Load the mountains data
     logger.info(f"Loading data from: {args.csv_path}")
     df = load_mountains_data(args.csv_path)
 
-    # Prepare data for embeddings
     texts, titles, metadata = prepare_mountains_for_embeddings(df)
 
-    # Create vector store
     create_vector_store(
         texts=texts,
         metadata=metadata,

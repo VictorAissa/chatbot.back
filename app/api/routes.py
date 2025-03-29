@@ -82,7 +82,6 @@ async def chat_endpoint(request: ChatRequest):
 
         else:
             logger.info("Using direct LLM query (RAG disabled)")
-            logger.info("Using direct LLM query (RAG disabled)")
             prompt = f"Question: {request.query}\nAnswer:"
             start_time = time.time()
             response = query_llm_with_fallback(

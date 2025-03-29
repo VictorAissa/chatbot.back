@@ -3,11 +3,10 @@ LLM module for interacting with Ollama.
 """
 
 import subprocess
-import time
 import logging
 import json
 import httpx
-from typing import Tuple, Optional, AsyncGenerator, Dict, Any
+from typing import Optional, AsyncGenerator, Dict, Any
 
 from app.core.config import Config
 

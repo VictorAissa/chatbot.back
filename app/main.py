@@ -37,44 +37,10 @@ def ensure_data_structure():
     chroma_dir = os.path.join(data_dir, "chroma_db")
     os.makedirs(chroma_dir, exist_ok=True)
 
-    # Check if we need to consolidate data from tests/data or app/data
-    test_data_dir = os.path.join(PROJECT_ROOT, "tests", "data")
-    app_data_dir = os.path.join(PROJECT_ROOT, "app", "data")
-
     # Check for mountain.csv
     mountain_csv = os.path.join(scripts_dir, "mountain.csv")
     if not os.path.exists(mountain_csv):
         logger.warning(f"mountain.csv not found in main data directory: {mountain_csv}")
-
-        # Look in tests/data
-        test_csv = os.path.join(test_data_dir, "mountain.csv")
-        if os.path.exists(test_csv):
-            logger.info(f"Found mountain.csv in tests/data, copying to main data directory")
-            shutil.copy2(test_csv, mountain_csv)
-
-        # Look in app/data
-        app_csv = os.path.join(app_data_dir, "mountain.csv")
-        if os.path.exists(app_csv):
-            logger.info(f"Found mountain.csv in app/data, copying to main data directory")
-            shutil.copy2(app_csv, mountain_csv)
-
-    # Check for ChromaDB data
-    test_chroma = os.path.join(test_data_dir, "chroma_db")
-    app_chroma = os.path.join(app_data_dir, "chroma_db")
-
-    # If main ChromaDB is empty but test ChromaDB exists and has data
-    if os.path.exists(test_chroma) and os.listdir(test_chroma):
-        if not os.listdir(chroma_dir):
-            logger.info(f"Found ChromaDB data in tests/data, copying to main data directory")
-            shutil.rmtree(chroma_dir)  # Remove empty directory
-            shutil.copytree(test_chroma, chroma_dir)
-
-    # If main ChromaDB is empty but app ChromaDB exists and has data
-    if os.path.exists(app_chroma) and os.listdir(app_chroma):
-        if not os.listdir(chroma_dir):
-            logger.info(f"Found ChromaDB data in app/data, copying to main data directory")
-            shutil.rmtree(chroma_dir)  # Remove empty directory
-            shutil.copytree(app_chroma, chroma_dir)
 
 ensure_data_structure()
 
@@ -147,7 +113,6 @@ app.add_middleware(
     expose_headers=["Content-Type", "Content-Length"]
 )
 
-# Import and include our router
 from app.api.routes import router
 app.include_router(router, prefix="/api")
 

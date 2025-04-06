@@ -79,7 +79,7 @@ def query_llm_with_ollama_api(
         return f"Error: {str(e)}"
 
 
-def qquery_llm_with_ollama_subprocess(
+def query_llm_with_ollama_subprocess(
         prompt: str,
         model_name: str = None,
         max_tokens: Optional[int] = None
@@ -135,7 +135,7 @@ def query_llm_with_fallback(
     # If no temperature is specified, use the direct method immediately
     if temperature is None :
         logger.info("No specific temperature requested, using direct method")
-        return qquery_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
+        return query_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
 
     # Try with API first to get temperature control
     try:
@@ -146,10 +146,10 @@ def query_llm_with_fallback(
 
     except (httpx.TimeoutException, httpx.ReadTimeout):
         logger.warning("API request timed out, falling back to subprocess method")
-        return qquery_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
+        return query_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
     except Exception as e:
         logger.error(f"API request failed: {str(e)}, falling back to subprocess method")
-        return qquery_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
+        return query_llm_with_ollama_subprocess(prompt, model_name, max_tokens)
 
 
 async def query_llm_with_ollama_stream(
@@ -227,7 +227,7 @@ async def query_llm_with_ollama_stream(
 
 async def query_llm_stream(
         query: str,
-        temperature: float = 0.7,
+        temperature: float = None,
         max_tokens: Optional[int] = None
 ) -> AsyncGenerator[str, None]:
     """
@@ -241,11 +241,13 @@ async def query_llm_stream(
     Yields:
         Tokens as they are generated
     """
+    params = _get_llm_params(None, temperature, None, None)
+
     prompt = f"Question: {query}\nAnswer:"
 
     async for token in query_llm_with_ollama_stream(
             prompt=prompt,
-            temperature=temperature,
+            temperature=params["temperature"],
             max_tokens=max_tokens
     ):
         yield token

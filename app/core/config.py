@@ -27,7 +27,7 @@ class Config:
         # LLM settings
         "LLM_MODEL": "gemma2:2b",                              # Default LLM model
         "LLM_TEMPERATURE": 0.7,                               # Default temperature
-        "LLM_TOP_K": 40,                                      # Default top_k
+        "LLM_TOP_K": 5,                                      # Default top_k
         "LLM_TOP_P": 0.9,                                     # Default top_p
 
         # Vector DB settings - using absolute paths

@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 import importlib.util
+import shutil
 
 logging.basicConfig(
     level=logging.INFO,

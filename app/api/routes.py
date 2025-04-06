@@ -11,7 +11,7 @@ import json
 import asyncio
 
 from app.api.models import ChatRequest, ChatResponse, HealthResponse, DocumentInfo
-from app.core.config import Config, PROJECT_ROOT
+from app.core.config import Config
 from app.services.rag import rag_pipeline, rag_pipeline_stream
 from app.services.llm import query_llm_with_fallback, query_llm_stream
 from app.services.vector_store import vector_store
@@ -108,7 +108,7 @@ async def prepare_data(background_tasks: BackgroundTasks):
     Endpoint to trigger data preparation in the background
     """
     try:
-        script_path = os.path.join(PROJECT_ROOT, "scripts", "prepare_data.py")
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "scripts", "prepare_data.py")
 
         if not os.path.exists(script_path):
             raise HTTPException(status_code=404, detail=f"Data preparation script not found")
@@ -184,7 +184,6 @@ async def stream_chat_endpoint(request: Request):
 
         request_origin = request.headers.get("Origin")
 
-        # Force CORS origin because FastAPI.add_middleware doesn't work here
         allowed_origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
 
         if cors_origins_str == "*":

@@ -7,26 +7,22 @@ import numpy as np
 import logging
 from typing import List, Union
 
-from app.core.config import Config
-
 logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
     """Service for generating text embeddings"""
 
-    def __init__(self, model_name: str = None):
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         """
         Initialize embedding service with a Sentence Transformer model
 
         Args:
             model_name: Name of the Sentence Transformer model to use
         """
-
-        model_name_value = model_name or Config.get("EMBEDDING_MODEL")
-        logger.info(f"Initializing EmbeddingService with model: {model_name_value}")
+        logger.info(f"Initializing EmbeddingService with model: {model_name}")
         try:
-            self.model = SentenceTransformer(model_name_value)
+            self.model = SentenceTransformer(model_name)
             self.embedding_dim = self.model.get_sentence_embedding_dimension()
             logger.info(f"Model loaded successfully. Embedding dimension: {self.embedding_dim}")
         except Exception as e:
